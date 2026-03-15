@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo-Bed-Flattening | Klipper Bed Mesh Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Publish to window for the rest of the app logic if needed, 
+        // but better to move all logic into this module scope.
+        window.THREE = THREE;
+        window.OrbitControls = OrbitControls;
+    </script>
+    <style>
+        :root {
+            --primary: #00d2ff;
+            --secondary: #3a7bd5;
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #22d3ee;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        #sidebar {
+            width: 350px;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            z-index: 10;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        .description {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        input[type="number"],
+        input[type="range"] {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-family: inherit;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .checkbox-group input {
+            width: 18px;
+            height: 18px;
+        }
+
+        button {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 1rem;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 210, 255, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #container {
+            flex: 1;
+            position: relative;
+        }
+
+        #drop-zone {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            padding: 2rem;
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(4px);
+            transition: all 0.3s;
+            z-index: 5;
+            text-align: center;
+        }
+
+        #drop-zone.active {
+            border-color: var(--primary);
+            background: rgba(0, 210, 255, 0.1);
+        }
+
+        #stats {
+            margin-top: auto;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* Loading spinner */
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #FFF;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: none;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="sidebar">
+        <a href="https://github.com/sebsucmor-alt/Neo-Bed-Flattening/" target="_blank" style="text-decoration: none;">
+            <h1>Neo-Bed-Flattening</h1>
+        </a>
+        <p class="description">Genera un calzo (shim) 3D a partir de los datos de bed_mesh de Klipper para nivelar
+            perfectamente tu cama.</p>
+
+        <div class="control-group">
+            <label>Grosor Base (mm)</label>
+            <input type="number" id="base-height" value="0.35" step="0.1" min="0.1">
+        </div>
+
+        <div class="control-group">
+            <label>Nivel de Suavizado (Smoothing)</label>
+            <input type="range" id="smoothing" value="2" min="0" max="6">
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted);">
+                <span>Bajo</span>
+                <span id="smoothing-val">2</span>
+                <span>Alto</span>
+            </div>
+        </div>
+
+        <div class="checkbox-group" id="invert-toggle">
+            <input type="checkbox" id="invert" checked>
+            <label for="invert" style="cursor: pointer; color: var(--text);">Invertir para Compensación</label>
+        </div>
+
+        <button id="load-btn" class="secondary">
+            <span>Cargar JSON de Klipper</span>
+        </button>
+        <input type="file" id="file-input" accept=".json">
+
+        <button id="export-btn" disabled>
+            <span>Generar y Exportar STL</span>
+            <span class="loader" id="export-loader"></span>
+        </button>
+
+        <div id="stats">
+            <div class="stat-line"><span>Malla:</span> <span class="stat-value" id="stat-grid">N/A</span></div>
+            <div class="stat-line"><span>Min Z:</span> <span class="stat-value" id="stat-min">N/A</span></div>
+            <div class="stat-line"><span>Max Z:</span> <span class="stat-value" id="stat-max">N/A</span></div>
+            <div class="stat-line"><span>Variación:</span> <span class="stat-value" id="stat-var">N/A</span></div>
+        </div>
+    </div>
+
+    <div id="container">
+        <div id="drop-zone">
+            Arrastra tu archivo JSON aquí<br>
+            <small style="opacity: 0.6">o haz clic en "Cargar JSON"</small>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Geometry Engine ---
+
+        function cubicInterpolate(p, x) {
+            return p[1] + 0.5 * x * (p[2] - p[0] + x * (2.0 * p[0] - 5.0 * p[1] + 4.0 * p[2] - p[3] + x * (3.0 * (p[1] - p[2]) + p[3] - p[0])));
+        }
+
+        function bicubicInterpolate(grid, x, y) {
+            const y_idx = Math.floor(y);
+            const x_idx = Math.floor(x);
+            const y_diff = y - y_idx;
+            const x_diff = x - x_idx;
+
+            const p = new Array(4);
+            for (let j = 0; j < 4; j++) {
+                const rowIdx = Math.max(0, Math.min(y_idx - 1 + j, grid.length - 1));
+                const row = grid[rowIdx];
+                const row_p = new Array(4);
+                for (let i = 0; i < 4; i++) {
+                    const colIdx = Math.max(0, Math.min(x_idx - 1 + i, row.length - 1));
+                    row_p[i] = row[colIdx];
+                }
+                p[j] = cubicInterpolate(row_p, x_diff);
+            }
+            return cubicInterpolate(p, y_diff);
+        }
+
+        // --- STL Generation ---
+
+        function generateSTL(vertices, indices) {
+            let stl = "solid neo_bed_flattening\n";
+            for (let i = 0; i < indices.length; i += 3) {
+                const v1 = vertices[indices[i]];
+                const v2 = vertices[indices[i + 1]];
+                const v3 = vertices[indices[i + 2]];
+
+                // Calculate normal
+                const ax = v2[0] - v1[0], ay = v2[1] - v1[1], az = v2[2] - v1[2];
+                const bx = v3[0] - v1[0], by = v3[1] - v1[1], bz = v3[2] - v1[2];
+                const nx = ay * bz - az * by;
+                const ny = az * bx - ax * bz;
+                const nz = ax * by - ay * bx;
+                const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+
+                stl += `  facet normal ${nx / len} ${ny / len} ${nz / len}\n`;
+                stl += "    outer loop\n";
+                stl += `      vertex ${v1[0]} ${v1[1]} ${v1[2]}\n`;
+                stl += `      vertex ${v2[0]} ${v2[1]} ${v2[2]}\n`;
+                stl += `      vertex ${v3[0]} ${v3[1]} ${v3[2]}\n`;
+                stl += "    endloop\n";
+                stl += "  endfacet\n";
+            }
+            stl += "endsolid neo_bed_flattening\n";
+            return stl;
+        }
+
+        // --- App Logic ---
+
+        let scene, camera, renderer, controls, mesh;
+        let currentGrid = null;
+        let currentParams = { min_x: 0, max_x: 220, min_y: 0, max_y: 220 };
+        let zMax = 0, zMin = 0;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 350) / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth - 350, window.innerHeight);
+            document.getElementById('container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 2);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+            directionalLight.position.set(1, 1, 2);
+            scene.add(directionalLight);
+
+            camera.position.set(110, -150, 150);
+            camera.up.set(0, 0, 1);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(110, 110, 0);
+            controls.update();
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        function updatePreview() {
+            if (!currentGrid) return;
+
+            if (mesh) scene.remove(mesh);
+
+            const baseHeight = parseFloat(document.getElementById('base-height').value) || 0.5;
+            const smoothing = parseInt(document.getElementById('smoothing').value);
+            const invert = document.getElementById('invert').checked;
+
+            const yr = currentGrid.length;
+            const xr = currentGrid[0].length;
+            const x_count = (xr - 1) * (smoothing + 1) + 1;
+            const y_count = (yr - 1) * (smoothing + 1) + 1;
+
+            const vertices = [];
+            const indices = [];
+            const colors = [];
+
+            const step_x = (currentParams.max_x - currentParams.min_x) / (x_count - 1);
+            const step_y = (currentParams.max_y - currentParams.min_y) / (y_count - 1);
+
+            // Top surface
+            for (let y = 0; y < y_count; y++) {
+                for (let x = 0; x < x_count; x++) {
+                    const gx = x / (smoothing + 1);
+                    const gy = y / (smoothing + 1);
+                    const z_val = bicubicInterpolate(currentGrid, gx, gy);
+
+                    const thickness = invert ? (baseHeight + (zMax - z_val)) : (baseHeight + z_val);
+                    const px = currentParams.min_x + x * step_x;
+                    const py = currentParams.min_y + y * step_y;
+
+                    vertices.push(px, py, thickness);
+
+                    // Heatmap color
+                    let t = (zMax !== zMin) ? (z_val - zMin) / (zMax - zMin) : 0.5;
+                    if (invert) t = 1.0 - t;
+                    const color = new THREE.Color();
+                    color.setHSL((1.0 - t) * 0.7, 1, 0.5); // Blue to Red
+                    colors.push(color.r, color.g, color.b);
+                }
+            }
+
+            // Bottom surface
+            const N = x_count * y_count;
+            for (let y = 0; y < y_count; y++) {
+                for (let x = 0; x < x_count; x++) {
+                    const px = currentParams.min_x + x * step_x;
+                    const py = currentParams.min_y + y * step_y;
+                    vertices.push(px, py, 0);
+                    colors.push(0.2, 0.3, 0.4); // Subtle blue for bottom
+                }
+            }
+
+            // Indices for top and bottom
+            for (let y = 0; y < y_count - 1; y++) {
+                for (let x = 0; x < x_count - 1; x++) {
+                    const v1 = y * x_count + x;
+                    const v2 = y * x_count + (x + 1);
+                    const v3 = (y + 1) * x_count + (x + 1);
+                    const v4 = (y + 1) * x_count + x;
+
+                    // Top (CCW)
+                    indices.push(v1, v2, v3);
+                    indices.push(v1, v3, v4);
+
+                    // Bottom (CW)
+                    const b1 = v1 + N, b2 = v2 + N, b3 = v3 + N, b4 = v4 + N;
+                    indices.push(b1, b3, b2);
+                    indices.push(b1, b4, b3);
+                }
+            }
+
+            // Walls
+            for (let y = 0; y < y_count - 1; y++) {
+                const t1 = y * x_count, t2 = (y + 1) * x_count, b1 = t1 + N, b2 = t2 + N;
+                indices.push(t1, b2, b1); indices.push(t1, t2, b2);
+                const t3 = t1 + (x_count - 1), t4 = t2 + (x_count - 1), b3 = t3 + N, b4 = t4 + N;
+                indices.push(t3, b3, b4); indices.push(t3, b4, t4);
+            }
+            for (let x = 0; x < x_count - 1; x++) {
+                const t1 = x, t2 = x + 1, b1 = t1 + N, b2 = t2 + N;
+                indices.push(t1, b1, b2); indices.push(t1, b2, t2);
+                const t3 = (y_count - 1) * x_count + x, t4 = t3 + 1, b3 = t3 + N, b4 = t4 + N;
+                indices.push(t3, b4, b3); indices.push(t3, t4, b4);
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+
+            const material = new THREE.MeshPhongMaterial({
+                vertexColors: true,
+                side: THREE.DoubleSide,
+                shininess: 60
+            });
+            mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+            // Update center
+            controls.target.set(
+                (currentParams.min_x + currentParams.max_x) / 2,
+                (currentParams.min_y + currentParams.max_y) / 2,
+                baseHeight / 2
+            );
+            controls.update();
+
+            document.getElementById('export-btn').disabled = false;
+        }
+
+        function parseKlipperJSON(json) {
+            let points = null;
+            let params = { min_x: 0, max_x: 220, min_y: 0, max_y: 220 };
+
+            if (json.profile && json.profile.points) {
+                points = json.profile.points;
+                if (json.profile.mesh_params) {
+                    const p = json.profile.mesh_params;
+                    params.min_x = p.min_x ?? 0;
+                    params.max_x = p.max_x ?? 220;
+                    params.min_y = p.min_y ?? 0;
+                    params.max_y = p.max_y ?? 220;
+                }
+            } else if (json.probed_matrix) {
+                points = json.probed_matrix;
+                if (json.mesh_min) {
+                    params.min_x = json.mesh_min[0];
+                    params.min_y = json.mesh_min[1];
+                }
+                if (json.mesh_max) {
+                    params.max_x = json.mesh_max[0];
+                    params.max_y = json.mesh_max[1];
+                }
+            }
+
+            if (!points || !points.length) throw new Error("No se encontraron puntos de malla válidos.");
+
+            currentGrid = points;
+            currentParams = params;
+
+            zMin = 999;
+            zMax = -999;
+            points.forEach(row => {
+                row.forEach(z => {
+                    if (z < zMin) zMin = z;
+                    if (z > zMax) zMax = z;
+                });
+            });
+
+            document.getElementById('stat-grid').textContent = `${points[0].length}x${points.length}`;
+            document.getElementById('stat-min').textContent = zMin.toFixed(3) + " mm";
+            document.getElementById('stat-max').textContent = zMax.toFixed(3) + " mm";
+            document.getElementById('stat-var').textContent = (zMax - zMin).toFixed(3) + " mm";
+
+            updatePreview();
+            document.getElementById('drop-zone').style.display = 'none';
+        }
+
+        // --- Event Listeners ---
+
+        document.getElementById('load-btn').onclick = () => document.getElementById('file-input').click();
+
+        document.getElementById('file-input').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const json = JSON.parse(ev.target.result);
+                    parseKlipperJSON(json);
+                } catch (err) {
+                    alert("Error al parsear el JSON: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        // Inputs
+        ['base-height', 'smoothing', 'invert'].forEach(id => {
+            const el = document.getElementById(id);
+            el.oninput = () => {
+                if (id === 'smoothing') document.getElementById('smoothing-val').textContent = el.value;
+                updatePreview();
+            };
+        });
+
+        // Export
+        document.getElementById('export-btn').onclick = () => {
+            const loader = document.getElementById('export-loader');
+            loader.style.display = 'inline-block';
+
+            setTimeout(() => {
+                const geo = mesh.geometry;
+                const pos = geo.attributes.position.array;
+                const index = geo.index.array;
+
+                const vertices = [];
+                for (let i = 0; i < pos.length; i += 3) {
+                    vertices.push([pos[i], pos[i + 1], pos[i + 2]]);
+                }
+
+                const stl = generateSTL(vertices, index);
+                const blob = new Blob([stl], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'neo_bed_flattening.stl';
+                a.click();
+
+                loader.style.display = 'none';
+            }, 100);
+        };
+
+        // Drop zone
+        const dz = document.getElementById('drop-zone');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
+            dz.addEventListener(ev, e => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        dz.addEventListener('dragenter', () => dz.classList.add('active'));
+        dz.addEventListener('dragover', () => dz.classList.add('active'));
+        dz.addEventListener('dragleave', () => dz.classList.remove('active'));
+        dz.addEventListener('drop', (e) => {
+            dz.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const json = JSON.parse(ev.target.result);
+                        parseKlipperJSON(json);
+                    } catch (err) {
+                        alert("Error: " + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        window.onresize = () => {
+            camera.aspect = (window.innerWidth - 350) / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth - 350, window.innerHeight);
+        };
+
+        initThree();
+    </script>
+</body>
+
+</html>
