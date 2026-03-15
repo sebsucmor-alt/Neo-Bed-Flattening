@@ -61,3 +61,7 @@ A lightweight command-line script for automated workflows.
 
 ---
 *Created by [sebsucmor-alt](https://github.com/sebsucmor-alt/)*
+
+ADDED X/Y Flip.
+
+The idea is to 'flip' the stl and printed mirroed, so you can just 'FLIP' the PEI-SHEET
