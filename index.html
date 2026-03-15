@@ -245,6 +245,16 @@
             <label for="invert" style="cursor: pointer; color: var(--text);">Invertir para Compensación</label>
         </div>
 
+        <div class="checkbox-group">
+            <input type="checkbox" id="mirror-x">
+            <label for="mirror-x" style="cursor: pointer; color: var(--text);">Espejo en X</label>
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="mirror-y">
+            <label for="mirror-y" style="cursor: pointer; color: var(--text);">Espejo en Y</label>
+        </div>
+
         <button id="load-btn" class="secondary">
             <span>Cargar JSON de Klipper</span>
         </button>
@@ -373,9 +383,19 @@
             const baseHeight = parseFloat(document.getElementById('base-height').value) || 0.5;
             const smoothing = parseInt(document.getElementById('smoothing').value);
             const invert = document.getElementById('invert').checked;
+            const mirrorX = document.getElementById('mirror-x').checked;
+            const mirrorY = document.getElementById('mirror-y').checked;
 
-            const yr = currentGrid.length;
-            const xr = currentGrid[0].length;
+            let points = currentGrid;
+            if (mirrorX) {
+                points = points.map(row => [...row].reverse());
+            }
+            if (mirrorY) {
+                points = [...points].reverse();
+            }
+
+            const yr = points.length;
+            const xr = points[0].length;
             const x_count = (xr - 1) * (smoothing + 1) + 1;
             const y_count = (yr - 1) * (smoothing + 1) + 1;
 
@@ -391,7 +411,7 @@
                 for (let x = 0; x < x_count; x++) {
                     const gx = x / (smoothing + 1);
                     const gy = y / (smoothing + 1);
-                    const z_val = bicubicInterpolate(currentGrid, gx, gy);
+                    const z_val = bicubicInterpolate(points, gx, gy);
 
                     const thickness = invert ? (baseHeight + (zMax - z_val)) : (baseHeight + z_val);
                     const px = currentParams.min_x + x * step_x;
@@ -545,7 +565,7 @@
         };
 
         // Inputs
-        ['base-height', 'smoothing', 'invert'].forEach(id => {
+        ['base-height', 'smoothing', 'invert', 'mirror-x', 'mirror-y'].forEach(id => {
             const el = document.getElementById(id);
             el.oninput = () => {
                 if (id === 'smoothing') document.getElementById('smoothing-val').textContent = el.value;

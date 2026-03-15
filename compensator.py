@@ -60,6 +60,8 @@ def main():
     parser.add_argument('--base', '-b', type=float, default=0.5, help='Base plate thickness in mm')
     parser.add_argument('--smoothing', '-s', type=int, default=2, help='Smoothing level (upsampling)')
     parser.add_argument('--no-invert', action='store_true', help='Do not invert for compensation')
+    parser.add_argument('--mirror-x', action='store_true', help='Mirror the mesh in X axis')
+    parser.add_argument('--mirror-y', action='store_true', help='Mirror the mesh in Y axis')
 
     args = parser.parse_args()
 
@@ -95,6 +97,12 @@ def main():
     if not points:
         print("Error: Could not find mesh points in JSON.")
         return
+
+    # Mirroring logic
+    if args.mirror_x:
+        points = [row[::-1] for row in points]
+    if args.mirror_y:
+        points = points[::-1]
 
     yr_raw = len(points)
     xr_raw = len(points[0]) if yr_raw > 0 else 0
