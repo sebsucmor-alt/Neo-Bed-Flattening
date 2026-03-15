@@ -21,3 +21,43 @@ Notes for users.
 - The easiest way is to use the STL inverted on X axis and ‘FLIP’ the PEI metal sheet, then you dont need to place it by hand
 
 ENJOY THE Neo-FLATNESS!
+
+# Neo-Bed-Flattening
+
+**Neo-Bed-Flattening** is a specialized tool designed to solve 3D printer bed leveling issues once and for all. It generates a custom-fitted 3D printable "shim" or plate based on your Klipper `bed_mesh` data. 
+
+By placing this precision-printed shim under your build surface (e.g., PEI sheet), you can physically compensate for bed plate irregularities, achieving a near-perfectly flat surface without relying solely on software-based mesh compensation.
+
+## Key Features
+
+- **Precision Compensation**: Uses Bicubic interpolation to upsample Klipper's sparse probed matrix for a smooth, high-fidelity surface.
+- **Adjustable Base**: Customizable base plate thickness to fit your specific setup.
+- **Smoothing Levels**: Control the mesh density for the generated STL file.
+- **Inversion Support**: Toggle between Generating a matching surface or a corrective (inverse) surface for physical leveling.
+- **Heatmap Visualization**: Real-time representation of your bed's height variance (Blue for low, Red for high).
+
+## Available Versions
+
+### 1. Web Application (Recommended)
+A modern, interactive browser-based tool with a 3D engine.
+- **How to use**: Just open `index.html` in any modern browser.
+- **Features**: Drag-and-drop JSON loading, interactive 3D preview, real-time settings adjustment, and direct STL export.
+
+### 2. Python CLI
+A lightweight command-line script for automated workflows.
+- **How to use**: 
+  ```bash
+  python3 compensator.py <bed_mesh.json> --output neo_bed_flattening.stl --base 0.5 --smoothing 2
+  ```
+
+## How It Works
+
+1. **Export**: Get your `bed_mesh` data from Klipper (usually found in `printer.cfg` or exported as a JSON).
+2. **Process**: Load the JSON into Neo-Bed-Flattening.
+3. **Generate**: Adjust the base thickness (e.g., 0.5mm) and smoothing.
+4. **Print**: Print the resulting STL in a heat-resistant material (like PETG or ASA).
+5. **Level**: Place the shim under your magnetic sheet/PEI plate.
+6. **Enjoy**: Revel in your perfectly flat first layers.
+
+---
+*Created by [sebsucmor-alt](https://github.com/sebsucmor-alt/)*
